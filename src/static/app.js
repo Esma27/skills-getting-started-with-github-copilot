@@ -4,14 +4,44 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
 
+  async function removeParticipant(activityName, email) {
+    try {
+      const response = await fetch(
+        `/activities/${encodeURIComponent(activityName)}/participants?email=${encodeURIComponent(email)}`,
+        { method: "DELETE" }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.detail || result.message || "Unable to remove participant");
+      }
+
+      messageDiv.textContent = result.message;
+      messageDiv.className = "message success";
+      messageDiv.classList.remove("hidden");
+      fetchActivities();
+    } catch (error) {
+      messageDiv.textContent = error.message;
+      messageDiv.className = "message error";
+      messageDiv.classList.remove("hidden");
+      console.error("Error removing participant:", error);
+    }
+
+    setTimeout(() => {
+      messageDiv.classList.add("hidden");
+    }, 5000);
+  }
+
   // Function to fetch activities from API
   async function fetchActivities() {
     try {
       const response = await fetch("/activities");
       const activities = await response.json();
 
-      // Clear loading message
+      // Clear loading message and reset activity selection
       activitiesList.innerHTML = "";
+      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -19,9 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
         activityCard.className = "activity-card";
 
         const spotsLeft = details.max_participants - details.participants.length;
-        const participantItems = details.participants.length
-          ? details.participants.map((participant) => `<li>${participant}</li>`).join("")
-          : `<li class="empty">No participants yet</li>`;
 
         activityCard.innerHTML = `
           <h4>${name}</h4>
@@ -30,12 +57,42 @@ document.addEventListener("DOMContentLoaded", () => {
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
           <div class="participants-section">
             <p><strong>Participants:</strong></p>
-            <ul class="participants-list">
-              ${participantItems}
-            </ul>
           </div>
         `;
 
+        const participantsSection = activityCard.querySelector(".participants-section");
+        const participantsList = document.createElement("ul");
+        participantsList.className = "participants-list";
+
+        if (details.participants.length > 0) {
+          details.participants.forEach((participant) => {
+            const participantItem = document.createElement("li");
+            participantItem.className = "participant-item";
+
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = participant;
+
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "participant-delete";
+            removeButton.title = `Unregister ${participant}`;
+            removeButton.innerHTML = "&times;";
+            removeButton.addEventListener("click", () => {
+              removeParticipant(name, participant);
+            });
+
+            participantItem.appendChild(nameSpan);
+            participantItem.appendChild(removeButton);
+            participantsList.appendChild(participantItem);
+          });
+        } else {
+          const emptyItem = document.createElement("li");
+          emptyItem.className = "empty";
+          emptyItem.textContent = "No participants yet";
+          participantsList.appendChild(emptyItem);
+        }
+
+        participantsSection.appendChild(participantsList);
         activitiesList.appendChild(activityCard);
 
         // Add option to select dropdown
