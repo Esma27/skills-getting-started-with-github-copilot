@@ -37,11 +37,113 @@ class TestActivitiesAPI:
         assert len(chess_club["participants"]) == 2
         assert "michael@mergington.edu" in chess_club["participants"]
 
+    def test_pre_populated_participants(self):
+        """Test that activities start with their pre-populated participants"""
+        response = client.get("/activities")
+        assert response.status_code == 200
+        data = response.json()
+
+        # Chess Club
+        chess_club = data["Chess Club"]
+        assert len(chess_club["participants"]) == 2
+        assert "michael@mergington.edu" in chess_club["participants"]
+        assert "daniel@mergington.edu" in chess_club["participants"]
+
+        # Programming Class
+        programming = data["Programming Class"]
+        assert len(programming["participants"]) == 2
+        assert "emma@mergington.edu" in programming["participants"]
+        assert "sophia@mergington.edu" in programming["participants"]
+
+        # Gym Class
+        gym = data["Gym Class"]
+        assert len(gym["participants"]) == 2
+        assert "john@mergington.edu" in gym["participants"]
+        assert "olivia@mergington.edu" in gym["participants"]
+
+        # Robotics Club
+        robotics = data["Robotics Club"]
+        assert len(robotics["participants"]) == 1
+        assert "lila@mergington.edu" in robotics["participants"]
+
+        # Debate Team
+        debate = data["Debate Team"]
+        assert len(debate["participants"]) == 1
+        assert "noah@mergington.edu" in debate["participants"]
+
+    def test_signup_missing_email(self):
+        """Test signup with missing email parameter"""
+        response = client.post("/activities/Football Team/signup")
+        assert response.status_code == 422  # Unprocessable Entity
+        data = response.json()
+        assert "detail" in data
+        # FastAPI validation error for missing required field
+
+    def test_signup_empty_email(self):
+        """Test signup with empty email string"""
+        response = client.post(
+            "/activities/Football Team/signup",
+            params={"email": ""}
+        )
+        assert response.status_code == 200  # Empty string is valid
+        data = response.json()
+        assert "message" in data
+        assert "" in data["message"]  # Empty email in message
+
+    def test_signup_case_sensitive_activity_name(self):
+        """Test that activity names are case sensitive"""
+        # Signup with correct case
+        response = client.post(
+            "/activities/Chess Club/signup",
+            params={"email": "case@example.com"}
+        )
+        assert response.status_code == 200
+
+        # Try with wrong case
+        response = client.post(
+            "/activities/chess club/signup",
+            params={"email": "case2@example.com"}
+        )
+        assert response.status_code == 404
+        data = response.json()
+        assert "Activity not found" in data["detail"]
+
+    def test_signup_response_message_exact(self):
+        """Test exact response message for successful signup"""
+        response = client.post(
+            "/activities/Swimming Club/signup",
+            params={"email": "exact@example.com"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Signed up exact@example.com for Swimming Club"
+
+    def test_remove_response_message_exact(self):
+        """Test exact response message for successful removal"""
+        # First add
+        client.post(
+            "/activities/Drama Club/signup",
+            params={"email": "remove_exact@example.com"}
+        )
+        # Then remove
+        response = client.delete(
+            "/activities/Drama Club/participants",
+            params={"email": "remove_exact@example.com"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["message"] == "Removed remove_exact@example.com from Drama Club"
+
+    def test_remove_missing_email(self):
+        """Test remove with missing email parameter"""
+        response = client.delete("/activities/Volleyball Team/participants")
+        assert response.status_code == 422  # Unprocessable Entity
+
     def test_signup_successful(self):
         """Test successful signup for an activity"""
         response = client.post(
             "/activities/Football Team/signup",
-            json={"email": "test@example.com"}
+            params={"email": "test@example.com"}
         )
         assert response.status_code == 200
         data = response.json()
@@ -59,7 +161,7 @@ class TestActivitiesAPI:
         """Test signup for non-existent activity"""
         response = client.post(
             "/activities/NonExistent Activity/signup",
-            json={"email": "test@example.com"}
+            params={"email": "test@example.com"}
         )
         assert response.status_code == 404
         data = response.json()
@@ -71,13 +173,13 @@ class TestActivitiesAPI:
         # First signup
         client.post(
             "/activities/Basketball Club/signup",
-            json={"email": "duplicate@example.com"}
+            params={"email": "duplicate@example.com"}
         )
 
         # Try to signup again
         response = client.post(
             "/activities/Basketball Club/signup",
-            json={"email": "duplicate@example.com"}
+            params={"email": "duplicate@example.com"}
         )
         assert response.status_code == 400
         data = response.json()
@@ -90,13 +192,13 @@ class TestActivitiesAPI:
         for i in range(10):
             client.post(
                 "/activities/Art Club/signup",
-                json={"email": f"student{i}@example.com"}
+                params={"email": f"student{i}@example.com"}
             )
 
         # Try to add one more
         response = client.post(
             "/activities/Art Club/signup",
-            json={"email": "overflow@example.com"}
+            params={"email": "overflow@example.com"}
         )
         assert response.status_code == 400
         data = response.json()
@@ -108,7 +210,7 @@ class TestActivitiesAPI:
         # First add a participant
         client.post(
             "/activities/Volleyball Team/signup",
-            json={"email": "remove@example.com"}
+            params={"email": "remove@example.com"}
         )
 
         # Now remove them
